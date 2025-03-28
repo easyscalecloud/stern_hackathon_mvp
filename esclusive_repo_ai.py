@@ -107,6 +107,8 @@ class Paths:
         repository and installs the packages using pip.
         """
         # Fetch requirements from GitHub repository
+        print("=== Installing dependencies")
+        print(f"download requirements.txt to {self.path_requirements_txt} ...")
         content = get_url_content(url_requirements_txt)
         self.path_requirements_txt.write_text(content, encoding="utf-8")
         # Install dependencies using pip
@@ -117,6 +119,7 @@ class Paths:
             "-r" f"{self.path_requirements_txt}",
         ]
         subprocess.run(args, check=True)
+        print("done")
 
     @property
     def path_esclusive_repo_ai_config_json(self) -> Path:
@@ -235,6 +238,7 @@ class GitHubSource(Source):
 
         Creates a shallow clone of the specified branch to minimize download size.
         """
+        print("clone repo ...")
         self.dir_repo.mkdir(parents=True, exist_ok=True)
         args = [
             "git",
@@ -256,6 +260,7 @@ class GitHubSource(Source):
         to extract files matching include/exclude patterns
         and save them as XML files in the knowledge base directory.
         """
+        print("extract documents ...")
         github_pipeline = GitHubPipeline(
             domain=self.domain,
             account=self.org,
@@ -273,6 +278,9 @@ class GitHubSource(Source):
         Build the knowledge base from this GitHub source.
         :return:
         """
+        print(
+            f"--- Build knowledge base from GitHub source: {self.org}/{self.repo} (ref: {self.ref})"
+        )
         self.clone()
         self.fetch()
 
@@ -304,13 +312,18 @@ class Config:
 
     @classmethod
     def from_json(cls, path_config: Path):
+        print("=== Load config")
+        print(f"load config from {path_config}")
         dct = json.loads(path_config.read_text(encoding="utf-8"))
-        return cls.from_dict(dct)
+        config = cls.from_dict(dct)
+        print("done")
+        return config
 
     def build(self):
         """
         Build the knowledge base from all configured sources.
         """
+        print("=== Build knowledge base")
         for source in self.sources:
             source.build()
         prompt = get_url_content(url_prompt_md)
@@ -321,17 +334,19 @@ class Config:
         paths.path_all_in_one_knowledge_base.write_text(content, encoding="utf-8")
 
     def publish(self):
+        print("=== Publish knowledge base")
         # See: https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication
         token = os.environ["GITHUB_TOKEN"]
         gh = Github(token)
         # See: https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#default-environment-variables
-        repo_name = os.environ["GITHUB_REPOSITORY"].split("/")[1]
+        full_repo_name = os.environ["GITHUB_REPOSITORY"]
         release_name = "knowledge-base"
-        repo = gh.get_repo(repo_name)
+        repo = gh.get_repo(full_repo_name)
         try:
             release = repo.get_release(release_name)
         except Exception as e:
             try:
+                print(f"--- Create release {release_name!r}")
                 default_branch = repo.default_branch
                 commit = repo.get_branch(default_branch).commit
                 commit_sha = commit.sha
@@ -341,12 +356,20 @@ class Config:
                     object=commit_sha,
                     type="commit",
                 )
-                repo.create_git_ref(ref=f"refs/tags/{release_name}", sha=tag.sha)
+                repo.create_git_ref(
+                    ref=f"refs/tags/{release_name}",
+                    sha=tag.sha,
+                )
             except:
                 pass
-            repo.create_git_release(tag=release_name, name=release_name)
+            repo.create_git_release(
+                tag=release_name,
+                name=release_name,
+                message=f"Release {release_name}",
+            )
             release = repo.get_release(release_name)
 
+        print("--- Publish all in one knowledge base")
         file_label = "all_in_one_knowledge_base.txt"
         for asset in release.get_assets():
             if asset.name == file_label:
