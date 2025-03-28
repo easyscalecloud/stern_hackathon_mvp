@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
 
+# Copyright (C) 2025 Sanhe Hu <sanhehu@easyscalecloud.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 """
 Knowledge Base Builder for GitHub Repositories.
 
@@ -27,8 +42,18 @@ from pathlib import Path
 from urllib import request
 from functools import cached_property
 
+__version__ = "0.1.1"
+__license__ = "AGPL-3.0-or-later"
+__author__ = "Sanhe Hu"
+__author_email__ = "sanhehu@easyscalecloud.com"
+__maintainer__ = "Sanhe Hu"
+__maintainer_email__ = "sanhehu@easyscalecloud.com"
+
+url_requirements_txt = f"https://github.com/easyscalecloud/stern_hackathon_mvp/releases/download/{__version__}/requirements.txt"
+url_prompt_md = f"https://github.com/easyscalecloud/stern_hackathon_mvp/releases/download/{__version__}/prompt.md"
 
 IS_CI = "CI" in os.environ
+
 
 def get_url_content(url) -> str:
     """
@@ -47,10 +72,8 @@ class Paths:
     builder, including temporary files, output locations, and dependency management.
     """
 
+    dir_project_root: Path = dataclasses.field()
     path_python_executable: Path = dataclasses.field()
-    dir_here: Path = dataclasses.field(
-        default_factory=lambda: Path(__file__).absolute().parent
-    )
 
     @property
     def dir_bin(self) -> Path:
@@ -67,7 +90,7 @@ class Paths:
         """
         Temporary directory for working files.
         """
-        dir_tmp = self.dir_here / "tmp"
+        dir_tmp = self.dir_project_root / "tmp"
         dir_tmp.mkdir(exist_ok=True)
         return dir_tmp
 
@@ -84,8 +107,7 @@ class Paths:
         repository and installs the packages using pip.
         """
         # Fetch requirements from GitHub repository
-        url = "https://raw.githubusercontent.com/easyscalecloud/stern_hackathon_mvp/refs/heads/main/requirements.txt"
-        content = get_url_content(url)
+        content = get_url_content(url_requirements_txt)
         self.path_requirements_txt.write_text(content, encoding="utf-8")
         # Install dependencies using pip
         args = [
@@ -95,6 +117,20 @@ class Paths:
             "-r" f"{self.path_requirements_txt}",
         ]
         subprocess.run(args, check=True)
+
+    @property
+    def path_esclusive_repo_ai_config_json(self) -> Path:
+        return (
+            self.dir_project_root
+            / ".github"
+            / "workflows"
+            / "esclusive_repo_ai_config.json"
+        )
+
+    @property
+    def path_prompt_md(self) -> Path:
+        """Path to the prompt.md file for AI Prompt."""
+        return self.dir_tmp / "prompt.md"
 
     @property
     def dir_knowledge_base(self):
@@ -107,7 +143,10 @@ class Paths:
         return self.dir_knowledge_base / "all_in_one_knowledge_base.txt"
 
 
-paths = Paths(path_python_executable=Path(sys.executable).absolute())
+paths = Paths(
+    dir_project_root=Path.cwd().absolute(),
+    path_python_executable=Path(sys.executable).absolute(),
+)
 paths.install_dependencies()
 
 from github import Github
@@ -274,7 +313,8 @@ class Config:
         """
         for source in self.sources:
             source.build()
-        lines = [path_prompt_md.read_text(encoding="utf-8")]
+        prompt = get_url_content(url_prompt_md)
+        lines = [prompt]
         for path in paths.dir_knowledge_base.glob("*.xml"):
             lines.append(path.read_text(encoding="utf-8"))
         content = "\n".join(lines)
@@ -292,10 +332,16 @@ class Config:
             release = repo.get_release(release_name)
         except Exception as e:
             try:
-                repo.create_git_tag(
+                default_branch = repo.default_branch
+                commit = repo.get_branch(default_branch).commit
+                commit_sha = commit.sha
+                tag = repo.create_git_tag(
                     tag=release_name,
-                    message=f"for Release {release_name}",
+                    message=f"Release {release_name}",
+                    object=commit_sha,
+                    type="commit",
                 )
+                repo.create_git_ref(ref=f"refs/tags/{release_name}", sha=tag.sha)
             except:
                 pass
             repo.create_git_release(tag=release_name, name=release_name)
@@ -310,14 +356,10 @@ class Config:
             label=file_label,
         )
 
-path_config = paths.dir_here.joinpath("config.json")
-config = Config.from_json(path_config)
-print(config)
-dir_here = Path(__file__).absolute().parent
-path_prompt_md = dir_here / "prompt.md"
 
-dir_tmp = Path(__file__).absolute().parent / "tmp"
-shutil.rmtree(dir_tmp, ignore_errors=True)
-dir_tmp.mkdir(exist_ok=True)
+config = Config.from_json(paths.path_esclusive_repo_ai_config_json)
+
+shutil.rmtree(paths.dir_tmp, ignore_errors=True)
+paths.dir_tmp.mkdir(exist_ok=True)
 config.build()
-# config.publish()
+config.publish()
