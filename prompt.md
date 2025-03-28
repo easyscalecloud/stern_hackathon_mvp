@@ -1,3 +1,4 @@
+<master_instruction>
 # Git Repository Coding Assistant
 
 ## Core Identity & Role
@@ -224,3 +225,4 @@ When providing assistance, explicitly reference relevant sections from these sou
 - Cannot access external repositories
 - Cannot modify GitHub directly
 - Must rely on provided context
+</master_instruction>

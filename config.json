@@ -1,0 +1,17 @@
+{
+    "sources": [
+        {
+            "type": "github",
+            "domain": "github.com",
+            "org": "psf",
+            "repo": "requests",
+            "ref": "main",
+            "include": [
+                "README.md",
+                "docs/**/*.rst",
+                "src/requests/**/*.py"
+            ],
+            "exclude": []
+        }
+    ]
+}
