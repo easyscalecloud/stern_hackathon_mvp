@@ -146,16 +146,6 @@ class Paths:
         return self.dir_knowledge_base / "all_in_one_knowledge_base.txt"
 
 
-paths = Paths(
-    dir_project_root=Path.cwd().absolute(),
-    path_python_executable=Path(sys.executable).absolute(),
-)
-paths.install_dependencies()
-
-from github import Github
-from docpack.api import GitHubPipeline
-
-
 class SourceTypeEnum(enum.StrEnum):
     github = "github"
 
@@ -260,6 +250,8 @@ class GitHubSource(Source):
         to extract files matching include/exclude patterns
         and save them as XML files in the knowledge base directory.
         """
+        from docpack.api import GitHubPipeline
+
         print("extract documents ...")
         github_pipeline = GitHubPipeline(
             domain=self.domain,
@@ -334,6 +326,8 @@ class Config:
         paths.path_all_in_one_knowledge_base.write_text(content, encoding="utf-8")
 
     def publish(self):
+        from github import Github
+
         print("=== Publish knowledge base")
         # See: https://docs.github.com/en/actions/security-for-github-actions/security-guides/automatic-token-authentication
         token = os.environ["GITHUB_TOKEN"]
@@ -345,6 +339,7 @@ class Config:
         try:
             release = repo.get_release(release_name)
         except Exception as e:
+            # create tag and release if not exists
             try:
                 print(f"--- Create release {release_name!r}")
                 default_branch = repo.default_branch
@@ -380,9 +375,16 @@ class Config:
         )
 
 
-config = Config.from_json(paths.path_esclusive_repo_ai_config_json)
+if __name__ == "__main__":
+    paths = Paths(
+        dir_project_root=Path.cwd().absolute(),
+        path_python_executable=Path(sys.executable).absolute(),
+    )
+    paths.install_dependencies()
 
-shutil.rmtree(paths.dir_tmp, ignore_errors=True)
-paths.dir_tmp.mkdir(exist_ok=True)
-config.build()
-config.publish()
+    shutil.rmtree(paths.dir_tmp, ignore_errors=True)
+    paths.dir_tmp.mkdir(exist_ok=True)
+
+    config = Config.from_json(paths.path_esclusive_repo_ai_config_json)
+    config.build()
+    config.publish()

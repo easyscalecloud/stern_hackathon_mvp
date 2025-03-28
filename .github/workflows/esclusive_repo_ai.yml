@@ -1,0 +1,24 @@
+# comprehensive github action yml reference: https://docs.github.com/en/free-pro-team@latest/actions/reference/workflow-syntax-for-github-actions
+name: esclusive_repo_ai
+
+on:
+  workflow_call:
+
+permissions:
+  contents: write # need this permission to publish knowledge base to GitHub Release
+
+jobs:
+  esclusive_repo_ai:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: "actions/checkout@v3" # https://github.com/marketplace/actions/checkout
+      - uses: "actions/setup-python@v4" # https://github.com/marketplace/actions/setup-python
+        with:
+          python-version: "3.11"
+      - name: "build and publish all in one knowledge base"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # CRITICAL
+        run: |
+          curl -fsSL https://github.com/easyscalecloud/stern_hackathon_mvp/releases/download/0.1.1/esclusive_repo_ai.py -o esclusive_repo_ai.py
+          python3 esclusive_repo_ai.py
